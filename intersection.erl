@@ -21,7 +21,7 @@ car_generator(N, Manager, LigthsCount) when N > 0 -> % N - Number of cars to gen
     Dir = rand:uniform(LigthsCount), % randomly choose direction according to the layout
     Manager ! {car, Dir}, % send a car to the intersection
     Wait = rand:uniform(5) * 200, % randomly choose period between generation: 200, 400, 600, 800 or 1000 ms
-    timer:sleep(Wait), % wait with further generation - 200 miliseconds
+    timer:sleep(Wait), % wait with further generation
     car_generator(N-1, Manager, LigthsCount); % generate rest of the N cars
 car_generator(N, Manager, _) when N == 0 -> % N - Number of cars to generate
     Manager ! terminate; % send termination signal to the intersection
@@ -29,12 +29,38 @@ car_generator(N, Manager, LigthsCount) when N < 0 -> % N - Number of cars to gen
     Dir = rand:uniform(LigthsCount), % randomly choose direction according to the layout
     Manager ! {car, Dir}, % send a car to the intersection
     Wait = rand:uniform(5) * 200, % randomly choose period between generation: 200, 400, 600, 800 or 1000 ms
-    timer:sleep(Wait), % wait with further generation - 200 miliseconds
+    timer:sleep(Wait), % wait with further generation
     car_generator(N, Manager, LigthsCount). % generate cars forever - N never changes
+
+car_runner(Light) ->
+    Wait = rand:uniform(3) * 200, % randomly choose period between check: 200, 400, 600 milliseconds
+    timer:sleep(Wait), % wait with checking light
+    Light ! {self(), check},
+    receive
+        green -> % if light is green send a signal that car went through
+            Light ! car_went;
+        _ -> ok % else continue without doing anything
+    end,
+    car_runner(Light).
 
 traffic_light(Name, Light, Queue) ->
     print_light(Name, Light, length(Queue)),
     receive
+        % Answer to light check
+        {From, check} ->
+            From ! Light, 
+            traffic_light(Name, Light, Queue);
+
+        % Delete car from queue if it went through 
+        car_went ->
+            if
+                length(Queue) > 0 -> % if queue isn't empty
+                    [_|T] = Queue,
+                    traffic_light(Name, Light, T);
+                true -> % else go on with your life like nothing happened
+                    traffic_light(Name, Light, Queue)
+            end;
+
         % Lights change signal
         change ->
             change_light(Name, Light, Queue);
@@ -86,10 +112,14 @@ change_interval([], _) -> ok.
 % Interval - Interval of traffic lights change in ms
 main(N, Interval) ->
     L1 = spawn(?MODULE, traffic_light, [l1, red, []]),
+    spawn(?MODULE, car_runner, [L1]),
     % L2 = spawn(?MODULE, traffic_light, [l2, green, []]),
+    % spawn(?MODULE, car_runner, [L2),
     % L3 = spawn(?MODULE, traffic_light, [l3, red]),
+    % spawn(?MODULE, car_runner, [L3]),
     % L4 = spawn(?MODULE, traffic_light, [l4, green]),
+    % spawn(?MODULE, car_runner, [L4]),
     Lights = [L1],
     change_interval(Lights, Interval), % enable changing lights once Interval (in ms) passes
     Manager = spawn(?MODULE, manager, [Lights]),
-    spawn(?MODULE, car_generator, [N, Manager, length(Lights)]).
+    spawn(?MODULE, car_generator, [N, Manager, length(Lights)]). % start car generator
