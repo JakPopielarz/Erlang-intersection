@@ -17,20 +17,20 @@
 % 3 -> car going "up"
 % 4 -> car going "right"
 
-car_generator(N, Manager, LigthsCount) when N > 0 -> % N - Number of cars to generate
+car_generator(N, Manager, LigthsCount, Coeff) when N > 0 -> % N - Number of cars to generate
     Dir = rand:uniform(LigthsCount), % randomly choose direction according to the layout
     Manager ! {car, Dir}, % send a car to the intersection
-    Wait = rand:uniform(5) * 200, % randomly choose period between generation: 200, 400, 600, 800 or 1000 ms
+    Wait = rand:uniform(5) * Coeff, % randomly choose period between generation
     timer:sleep(Wait), % wait with further generation
-    car_generator(N-1, Manager, LigthsCount); % generate rest of the N cars
-car_generator(N, Manager, _) when N == 0 -> % N - Number of cars to generate
+    car_generator(N-1, Manager, LigthsCount, Coeff); % generate rest of the N cars
+car_generator(N, Manager, _, _) when N == 0 -> % N - Number of cars to generate
     Manager ! terminate; % send termination signal to the intersection
-car_generator(N, Manager, LigthsCount) when N < 0 -> % N - Number of cars to generate
+car_generator(N, Manager, LigthsCount, Coeff) when N < 0 -> % N - Number of cars to generate
     Dir = rand:uniform(LigthsCount), % randomly choose direction according to the layout
     Manager ! {car, Dir}, % send a car to the intersection
-    Wait = rand:uniform(5) * 200, % randomly choose period between generation: 200, 400, 600, 800 or 1000 ms
+    Wait = rand:uniform(5) * Coeff, % randomly choose period between generation
     timer:sleep(Wait), % wait with further generation
-    car_generator(N, Manager, LigthsCount). % generate cars forever - N never changes
+    car_generator(N, Manager, LigthsCount, Coeff). % generate cars forever - N never changes
 
 car_runner(Light) ->
     Wait = rand:uniform(3) * 200, % randomly choose period between check: 200, 400, 600 milliseconds
@@ -161,7 +161,9 @@ replace(List, Index, Element) ->
 
 % N - Number of cars to generate
 % Interval - Interval of traffic lights change in ms
-main(N, Interval) ->
+% Coeff - coefficient of random car generation delay
+main(N, Interval) -> main(N, Interval, 150).
+main(N, Interval, Coeff) ->
     L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
     spawn(?MODULE, car_runner, [L1]),
     L2 = spawn(?MODULE, traffic_light, [l2, g, []]),
@@ -178,4 +180,4 @@ main(N, Interval) ->
     change_interval(Lights, Interval), % enable changing lights once Interval (in ms) passes
     Printer = spawn(?MODULE, intersection_printer, [Lights]),
     Manager = spawn(?MODULE, manager, [Lights, Printer]),
-    spawn(?MODULE, car_generator, [N, Manager, length(Lights)]). % start car generator
+    spawn(?MODULE, car_generator, [N, Manager, length(Lights), Coeff]). % start car generator
