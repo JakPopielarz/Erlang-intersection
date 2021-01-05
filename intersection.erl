@@ -158,26 +158,64 @@ receive_info(_, List) ->
 replace(List, Index, Element) ->
     lists:sublist(List,Index-1) ++ [Element] ++ lists:nthtail(Index,List).
 
+% Helper function to spawn traffic lights processes
+spawn_lights(LightsCount) ->
+    if
+        LightsCount == 1 ->
+            L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
+            spawn(?MODULE, car_runner, [L1]),
+            Lights = [L1];
 
+        LightsCount == 2 ->
+            L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
+            spawn(?MODULE, car_runner, [L1]),
+            L2 = spawn(?MODULE, traffic_light, [l2, g, []]),
+            spawn(?MODULE, car_runner, [L2]),
+            Lights = [L1, L2];
+
+        LightsCount == 3 ->
+            L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
+            spawn(?MODULE, car_runner, [L1]),
+            L2 = spawn(?MODULE, traffic_light, [l2, g, []]),
+            spawn(?MODULE, car_runner, [L2]),
+            L3 = spawn(?MODULE, traffic_light, [l3, r, []]),
+            spawn(?MODULE, car_runner, [L3]),
+            Lights = [L1, L2, L3];
+
+        LightsCount == 4 ->
+            L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
+            spawn(?MODULE, car_runner, [L1]),
+            L2 = spawn(?MODULE, traffic_light, [l2, g, []]),
+            spawn(?MODULE, car_runner, [L2]),
+            L3 = spawn(?MODULE, traffic_light, [l3, r, []]),
+            spawn(?MODULE, car_runner, [L3]),
+            L4 = spawn(?MODULE, traffic_light, [l4, g, []]),
+            spawn(?MODULE, car_runner, [L4]),
+            Lights = [L1, L2, L3, L4];
+
+        true ->
+            Lights = invalid
+    end,
+    Lights.
+
+
+% various Quality of Life functions - with predetermined parameters
+main() -> main(-1, 2000, 150, 4).
+main(Interval) -> main(-1, Interval, 150, 4).
+main(N, Interval) -> main(N, Interval, 150, 4).
+main(N, Interval, LightsCount) -> main(N, Interval, 150, LightsCount).
 % N - Number of cars to generate
 % Interval - Interval of traffic lights change in ms
 % Coeff - coefficient of random car generation delay
-main(N, Interval) -> main(N, Interval, 150).
-main(N, Interval, Coeff) ->
-    L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
-    spawn(?MODULE, car_runner, [L1]),
-    L2 = spawn(?MODULE, traffic_light, [l2, g, []]),
-    spawn(?MODULE, car_runner, [L2]),
-    L3 = spawn(?MODULE, traffic_light, [l3, r, []]),
-    spawn(?MODULE, car_runner, [L3]),
-    L4 = spawn(?MODULE, traffic_light, [l4, g, []]),
-    spawn(?MODULE, car_runner, [L4]),
-    Lights = [L1 
-        ,L2 
-        ,L3 
-        ,L4
-    ],
-    change_interval(Lights, Interval), % enable changing lights once Interval (in ms) passes
-    Printer = spawn(?MODULE, intersection_printer, [Lights]),
-    Manager = spawn(?MODULE, manager, [Lights, Printer]),
-    spawn(?MODULE, car_generator, [N, Manager, length(Lights), Coeff]). % start car generator
+% LightsCount - number of working traffic lights (between 1 and 4, otherwise program won't execute properly)
+main(N, Interval, Coeff, LightsCount) ->
+    Lights = spawn_lights(LightsCount),
+    if
+        Lights == invalid ->
+            io:format("This number of lights (~p) is invalid. Please use number between 1 and 4.~n", [LightsCount]);
+        true -> 
+            change_interval(Lights, Interval), % enable changing lights once Interval (in ms) passes
+            Printer = spawn(?MODULE, intersection_printer, [Lights]),
+            Manager = spawn(?MODULE, manager, [Lights, Printer]),
+            spawn(?MODULE, car_generator, [N, Manager, length(Lights), Coeff]) % start car generator
+    end.
