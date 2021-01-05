@@ -37,18 +37,22 @@ car_runner(Light) ->
     timer:sleep(Wait), % wait with checking light
     Light ! {self(), check},
     receive
-        green -> % if light is green send a signal that car went through
+        g -> % if light is green send a signal that car went through
             Light ! car_went;
         _ -> ok % else continue without doing anything
     end,
     car_runner(Light).
 
 traffic_light(Name, Light, Queue) ->
-    print_light(Name, Light, length(Queue)),
     receive
-        % Answer to light check
+        % Answer to light runner check
         {From, check} ->
             From ! Light, 
+            traffic_light(Name, Light, Queue);
+
+        % Answer to intersection printer check
+        {From, get_info} -> 
+            From ! {Name, Light, length(Queue)},
             traffic_light(Name, Light, Queue);
 
         % Delete car from queue if it went through 
@@ -72,22 +76,18 @@ traffic_light(Name, Light, Queue) ->
         terminate -> terminate 
     end.
 
-% Temporary helper to print a light
-print_light(Name, Light, Waiting) ->
-    io:format("~p: Light: ~p; Waiting: ~p~n", [Name, Light, Waiting]).
-
 % Helper function to change lights from red to green and back
-change_light(Name, Light, Queue) when Light == red ->
-    traffic_light(Name, green, Queue); % create a traffic light with changed light
+change_light(Name, Light, Queue) when Light == r ->
+    traffic_light(Name, g, Queue); % create a traffic light with changed light
 change_light(Name, _, Queue) ->
-    traffic_light(Name, red, Queue). % create a traffic light with changed light
+    traffic_light(Name, r, Queue). % create a traffic light with changed light
 
-manager(Lights) -> 
+manager(Lights, Printer) -> 
     receive
         {car, Dir} ->
             lists:nth(Dir, Lights) ! car, % send received car to the correct road - Lights[Dir] (lists:nth uses 1-based indexing)
-            manager(Lights);
-        terminate ->
+            manager(Lights, Printer);
+        terminate -> Printer ! terminate,
             terminate_lights(Lights),
             terminate
     end.
@@ -108,19 +108,74 @@ change_interval([H|T], Interval) ->
 % needed to avoid signature mismatch errors.
 change_interval([], _) -> ok. 
 
+intersection_printer(Lights) ->
+    check_lights(Lights, self()), % send a query to every light to get Queue length and Light
+    Data = receive_info(length(Lights)), % Parse received data
+    if
+        Data == terminate -> terminate; % if received a terminate signal - end
+        true ->
+            io:format("~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n"), % "clear" the console
+            io:format("##| ~p |##~n##| ~p |##~n--+   +--~n~p|~p   ~p|~p~n--+   +--~n##| ~p |##~n##| ~p |##~n", Data), % print the intersection
+            timer:sleep(50), % wait before next print-out
+            intersection_printer(Lights)
+    end.
+
+% Helper function to check lights and queue lengths
+check_lights([H|T], From) ->
+    H ! {From, get_info},
+    check_lights(T, From);
+% when initialized sending to every light - stop processing with an ok.
+% needed to avoid signature mismatch errors.
+check_lights([], _) -> ok.
+
+% Helper function to receive data from every light
+receive_info(N) ->
+    receive_info(N, [x, x, x, x, x, x, x, x]). % start with a symbol for closed road - x
+receive_info(N, List) when N > 0 ->
+    receive % Each light changes correct spots in List
+        {l1, Light, Length} ->
+            Tmp = replace(List, 1, Length),
+            New = replace(Tmp, 2, Light),
+            receive_info(N-1, New);
+        {l2, Light, Length} ->
+            Tmp = replace(List, 5, Light),
+            New = replace(Tmp, 6, Length),
+            receive_info(N-1, New);
+        {l3, Light, Length} ->
+            Tmp = replace(List, 7, Light),
+            New = replace(Tmp, 8, Length),
+            receive_info(N-1, New);
+        {l4, Light, Length} ->
+            Tmp = replace(List, 3, Length),
+            New = replace(Tmp, 4, Light),
+            receive_info(N-1, New);
+        terminate -> terminate
+    end; % Make sure tor receive from every light
+receive_info(_, List) ->
+    List. % when received info from every light - return the list
+
+% Helper function to replace Element of a List on a given Index (1-based indexing)
+replace(List, Index, Element) ->
+    lists:sublist(List,Index-1) ++ [Element] ++ lists:nthtail(Index,List).
+
 
 % N - Number of cars to generate
 % Interval - Interval of traffic lights change in ms
 main(N, Interval) ->
-    L1 = spawn(?MODULE, traffic_light, [l1, red, []]),
+    L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
     spawn(?MODULE, car_runner, [L1]),
-    L2 = spawn(?MODULE, traffic_light, [l2, green, []]),
+    L2 = spawn(?MODULE, traffic_light, [l2, g, []]),
     spawn(?MODULE, car_runner, [L2]),
-    L3 = spawn(?MODULE, traffic_light, [l3, red, []]),
+    L3 = spawn(?MODULE, traffic_light, [l3, r, []]),
     spawn(?MODULE, car_runner, [L3]),
-    L4 = spawn(?MODULE, traffic_light, [l4, green, []]),
+    L4 = spawn(?MODULE, traffic_light, [l4, g, []]),
     spawn(?MODULE, car_runner, [L4]),
-    Lights = [L1, L2, L3, L4],
+    Lights = [L1 
+        ,L2 
+        ,L3 
+        ,L4
+    ],
     change_interval(Lights, Interval), % enable changing lights once Interval (in ms) passes
-    Manager = spawn(?MODULE, manager, [Lights]),
+    Printer = spawn(?MODULE, intersection_printer, [Lights]),
+    Manager = spawn(?MODULE, manager, [Lights, Printer]),
     spawn(?MODULE, car_generator, [N, Manager, length(Lights)]). % start car generator
