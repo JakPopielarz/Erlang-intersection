@@ -17,20 +17,31 @@
 % 3 -> car going "up"
 % 4 -> car going "right"
 
-car_generator(N, Manager, LigthsCount, Coeff) when N > 0 -> % N - Number of cars to generate
-    Dir = rand:uniform(LigthsCount), % randomly choose direction according to the layout
-    Manager ! {car, Dir}, % send a car to the intersection
+car_generator(N, Printer, Lights, Coeff) when N > 0 -> % N - Number of cars to generate
+    Dir = rand:uniform(length(Lights)), % randomly choose direction according to the layout
+    lists:nth(Dir, Lights) ! car, % send a car to the intersection
     Wait = rand:uniform(5) * Coeff, % randomly choose period between generation
     timer:sleep(Wait), % wait with further generation
-    car_generator(N-1, Manager, LigthsCount, Coeff); % generate rest of the N cars
-car_generator(N, Manager, _, _) when N == 0 -> % N - Number of cars to generate
-    Manager ! terminate; % send termination signal to the intersection
-car_generator(N, Manager, LigthsCount, Coeff) when N < 0 -> % N - Number of cars to generate
-    Dir = rand:uniform(LigthsCount), % randomly choose direction according to the layout
-    Manager ! {car, Dir}, % send a car to the intersection
+    car_generator(N-1, Printer, Lights, Coeff); % generate rest of the N cars
+
+car_generator(N, Printer, Lights, _) when N == 0 -> % N - Number of cars to generate
+    Printer ! terminate, % send termination signal to the intersection printer
+    terminate_lights(Lights); % send termination signal to the intersection
+
+car_generator(N, Printer, Lights, Coeff) when N < 0 -> % N - Number of cars to generate
+    Dir = rand:uniform(length(Lights)), % randomly choose direction according to the layout
+    lists:nth(Dir, Lights) ! Dir, % send a car to the intersection
     Wait = rand:uniform(5) * Coeff, % randomly choose period between generation
     timer:sleep(Wait), % wait with further generation
-    car_generator(N, Manager, LigthsCount, Coeff). % generate cars forever - N never changes
+    car_generator(N, Printer, Lights, Coeff). % generate cars forever - N never changes
+
+% Helper functions to terminate lights every
+terminate_lights([H|T]) ->
+    H ! terminate,
+    terminate_lights(T);
+% when termianated every light - stop processing with an ok.
+% needed to avoid signature mismatch errors.
+terminate_lights([]) -> ok.
 
 car_runner(Light) ->
     Wait = rand:uniform(3) * 200, % randomly choose period between check: 200, 400, 600 milliseconds
@@ -81,24 +92,6 @@ change_light(Name, Light, Queue) when Light == r ->
     traffic_light(Name, g, Queue); % create a traffic light with changed light
 change_light(Name, _, Queue) ->
     traffic_light(Name, r, Queue). % create a traffic light with changed light
-
-manager(Lights, Printer) -> 
-    receive
-        {car, Dir} ->
-            lists:nth(Dir, Lights) ! car, % send received car to the correct road - Lights[Dir] (lists:nth uses 1-based indexing)
-            manager(Lights, Printer);
-        terminate -> Printer ! terminate,
-            terminate_lights(Lights),
-            terminate
-    end.
-
-% Helper functions to terminate lights every
-terminate_lights([H|T]) ->
-    H ! terminate,
-    terminate_lights(T);
-% when termianated every light - stop processing with an ok.
-% needed to avoid signature mismatch errors.
-terminate_lights([]) -> ok.
 
 % Helper functions to send a signal to change lights every interval
 change_interval([H|T], Interval) ->
@@ -216,6 +209,6 @@ main(N, Interval, Coeff, LightsCount) ->
         true -> 
             change_interval(Lights, Interval), % enable changing lights once Interval (in ms) passes
             Printer = spawn(?MODULE, intersection_printer, [Lights]),
-            Manager = spawn(?MODULE, manager, [Lights, Printer]),
-            spawn(?MODULE, car_generator, [N, Manager, length(Lights), Coeff]) % start car generator
+            % Manager = spawn(?MODULE, manager, [Lights, Printer]),
+            spawn(?MODULE, car_generator, [N, Printer, Lights, Coeff]) % start car generator
     end.
