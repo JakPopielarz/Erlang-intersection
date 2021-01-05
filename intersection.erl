@@ -68,7 +68,8 @@ traffic_light(Name, Light, Queue) ->
         % Car approaching singal
         car ->
             traffic_light(Name, Light, Queue ++ [car]); % add cars to the end of the queue
-        terminate -> terminate
+        % TODO: queue should be emptied before terminating lights
+        terminate -> terminate 
     end.
 
 % Temporary helper to print a light
@@ -113,13 +114,13 @@ change_interval([], _) -> ok.
 main(N, Interval) ->
     L1 = spawn(?MODULE, traffic_light, [l1, red, []]),
     spawn(?MODULE, car_runner, [L1]),
-    % L2 = spawn(?MODULE, traffic_light, [l2, green, []]),
-    % spawn(?MODULE, car_runner, [L2),
-    % L3 = spawn(?MODULE, traffic_light, [l3, red]),
-    % spawn(?MODULE, car_runner, [L3]),
-    % L4 = spawn(?MODULE, traffic_light, [l4, green]),
-    % spawn(?MODULE, car_runner, [L4]),
-    Lights = [L1],
+    L2 = spawn(?MODULE, traffic_light, [l2, green, []]),
+    spawn(?MODULE, car_runner, [L2]),
+    L3 = spawn(?MODULE, traffic_light, [l3, red, []]),
+    spawn(?MODULE, car_runner, [L3]),
+    L4 = spawn(?MODULE, traffic_light, [l4, green, []]),
+    spawn(?MODULE, car_runner, [L4]),
+    Lights = [L1, L2, L3, L4],
     change_interval(Lights, Interval), % enable changing lights once Interval (in ms) passes
     Manager = spawn(?MODULE, manager, [Lights]),
     spawn(?MODULE, car_generator, [N, Manager, length(Lights)]). % start car generator
