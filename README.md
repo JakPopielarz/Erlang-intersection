@@ -6,7 +6,7 @@ Calling it a simulation is an overstatement, but I'll do it anyway.
 To run simpy compile the module and run it's `main` function. It accepts four arguments, but exists in various versions to make life easier:
 * `main/4`: run the simulation and define all parameters by yourself (in order of passing to function):
     * `N` - Number of cars to generate
-    * `Interval` - Interval of traffic lights change in ms
+    * `Interval` - Interval of traffic lights change in ms. It can be passed as an integer or a 2-element list. In case it is a list - first element is treated as length of red light on traffic light 1 & 3 (green on 2 & 4), second element as length of green light on traffic light 1 & 3 (red on 2 & 4). If it is an integer - equal duration is assumed
     * `Coeff` - coefficient of random car generation delay. Each car will be generated after *`random number between 1 and 5 (inclusive)`* * `Coeff`
     * `LightsCount` - number of working traffic lights (between 1 and 4, otherwise program won't execute properly)
 * `main/3`: run the simulation with predetermined `Coeff = 150`
@@ -41,7 +41,7 @@ It's not much, but it's kind-of-simple to read. Every `r` or `g` symbolises a tr
 4 -> car going "right"
 ```
 So in the example print-out above we can see that:
-* Lights 1 and 3 are red, 3 is green
+* Lights 1 and 3 are red, 2 is green
 * Light 4 is disabled (road closed symbolised by the `x`s)
 * There are 7 cars behind light 2, 1 waiting behind light 3
 

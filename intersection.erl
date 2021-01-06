@@ -98,10 +98,13 @@ change_light(Name, _, Queue) ->
 
 
 % Process messaging about light changes
-lights_changer(Lights, Interval) ->
+lights_changer(Lights, Interval) -> lights_changer(Lights, Interval, 0).
+lights_changer(Lights, Interval, N) ->
+    Index = N rem 2 + 1, % calculate index for this iteration - 1 or 2
+    CurrentInterval = lists:nth(Index, Interval), % get element from Interval list - 1 based indexing
+    timer:sleep(CurrentInterval), % wait for Interval ms to pass
     message_change(Lights), % send change notification to every light
-    timer:sleep(Interval), % wait for Interval ms to pass
-    lights_changer(Lights, Interval). % go again
+    lights_changer(Lights, Interval, N+1). % go again with incremented N
 
 % Helper function to message every light about the change
 message_change([H|T]) ->
@@ -142,21 +145,21 @@ receive_info(N, List) when N > 0 ->
         {l1, Light, Length} ->
             Tmp = replace(List, 1, Length),
             New = replace(Tmp, 2, Light),
-            receive_info(N-1, New);
+            receive_info(N-1, New); % Make sure tor receive from every light
         {l2, Light, Length} ->
             Tmp = replace(List, 5, Light),
             New = replace(Tmp, 6, Length),
-            receive_info(N-1, New);
+            receive_info(N-1, New); % Make sure tor receive from every light
         {l3, Light, Length} ->
             Tmp = replace(List, 7, Light),
             New = replace(Tmp, 8, Length),
-            receive_info(N-1, New);
+            receive_info(N-1, New); % Make sure tor receive from every light
         {l4, Light, Length} ->
             Tmp = replace(List, 3, Length),
             New = replace(Tmp, 4, Light),
-            receive_info(N-1, New);
+            receive_info(N-1, New); % Make sure tor receive from every light
         terminate -> terminate
-    end; % Make sure tor receive from every light
+    end; 
 receive_info(_, List) ->
     List. % when received info from every light - return the list
 
@@ -214,6 +217,11 @@ main(N, Interval, LightsCount) -> main(N, Interval, 150, LightsCount).
 % Interval - Interval of traffic lights change in ms
 % Coeff - coefficient of random car generation delay
 % LightsCount - number of working traffic lights (between 1 and 4, otherwise program won't execute properly)
+
+% To support different lengths of red and green lights check if interval is an integer (same duration of red and green)
+main(N, Interval, Coeff, LightsCount) when is_integer(Interval) -> main(N, [Interval, Interval], Coeff, LightsCount);
+% or if interval is a list (different durations)
+% Treating first element of the list as duration of red, second as duration of green light on traffic light 1 & 3 
 main(N, Interval, Coeff, LightsCount) ->
     Lights = spawn_lights(LightsCount),
     if
