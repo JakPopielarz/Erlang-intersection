@@ -4,15 +4,16 @@ A simple project written in Erlang as part of an assignment.
 Calling it a simulation is an overstatement, but I'll do it anyway.
 ## Running
 To run simpy compile the module and run it's `main` function. It accepts four arguments, but exists in various versions to make life easier:
-* `main/4`: run the simulation and define all parameters by yourself (in order of passing to function):
+* `main/5`: run the simulation and define all parameters by yourself (in order of passing to function):
     * `N` - Number of cars to generate
     * `Interval` - Interval of traffic lights change in ms. It can be passed as an integer or a 2-element list. In case it is a list - first element is treated as length of red light on traffic light 1 & 3 (green on 2 & 4), second element as length of green light on traffic light 1 & 3 (red on 2 & 4). If it is an integer - equal duration is assumed
     * `Coeff` - coefficient of random car generation delay. Each car will be generated after *`random number between 1 and 5 (inclusive)`* * `Coeff`
     * `LightsCount` - number of working traffic lights (between 1 and 4, otherwise program won't execute properly)
-* `main/3`: run the simulation with predetermined `Coeff = 150`
-* `main/2`: run the simulation with predetermined `Coeff = 150, LightsCount = 4`
-* `main/1`: run the simulation with predetermined `N = -1, Coeff = 150, LightsCount = 4`
-* `main/0`: run the simulation with predetermined `N = -1, Interval = 2000, Coeff = 150, LightsCount = 4`
+    * `DoAdjust` - boolean specifying if traffic lights change interval should change if one of queues is long 
+* `main/3`: run the simulation with predetermined `Coeff = 150, DoAdjust = true`
+* `main/2`: run the simulation with predetermined `Coeff = 150, LightsCount = 4, DoAdjust = true`
+* `main/1`: run the simulation with predetermined `N = -1, Coeff = 150, LightsCount = 4, DoAdjust = true`
+* `main/0`: run the simulation with predetermined `N = -1, Interval = 2000, Coeff = 150, LightsCount = 4, DoAdjust = true`
 
 The arguments which are predetermined (and their values) have been chosen on "what's convenient for me" basis.
 

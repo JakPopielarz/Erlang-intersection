@@ -99,14 +99,19 @@ change_light(Name, _, Queue) ->
 
 
 % Process messaging about light changes
-lights_changer(Lights, Interval) -> lights_changer(Lights, Interval, 0).
-lights_changer(Lights, Interval, N) ->
-    Index = N rem 2 + 1, % calculate index for this iteration - 1 or 2
-    CurrentInterval = lists:nth(Index, Interval), % get element from Interval list - 1 based indexing
-    timer:sleep(CurrentInterval), % wait for Interval ms to pass
+lights_changer(Lights, Interval, DoAdjust) -> lights_changer(Lights, Interval, DoAdjust, 0).
+lights_changer(Lights, Interval, DoAdjust, N) ->
+    if
+        DoAdjust == true ->
+            Index = N rem 2 + 1, % calculate index for this iteration - 1 or 2
+            CurrentInterval = lists:nth(Index, Interval), % get element from Interval list - 1 based indexing
+            timer:sleep(CurrentInterval), % wait for Interval ms to pass
+            NewInterval = adjust_intervals(length(Lights), Interval); % Get interval for next interation
+        true ->
+            NewInterval = Interval
+    end,
     message_change(Lights), % send change notification to every light
-    NewInterval = adjust_intervals(length(Lights), Interval), % Get interval for next interation
-    lights_changer(Lights, NewInterval, N+1). % go again with incremented N
+    lights_changer(Lights, NewInterval, DoAdjust, N+1). % go again with incremented N
 
 % Helper function to message every light about the change
 message_change([H|T]) ->
@@ -266,26 +271,27 @@ spawn_lights(LightsCount) ->
 
 
 % various Quality of Life functions - with predetermined parameters
-main() -> main(-1, 2000, 150, 4).
-main(Interval) -> main(-1, Interval, 150, 4).
-main(N, Interval) -> main(N, Interval, 150, 4).
-main(N, Interval, LightsCount) -> main(N, Interval, 150, LightsCount).
+main() -> main(-1, 2000, 150, 4, true).
+main(Interval) -> main(-1, Interval, 150, 4, true).
+main(N, Interval) -> main(N, Interval, 150, 4, true).
+main(N, Interval, LightsCount) -> main(N, Interval, 150, LightsCount, true).
 % N - Number of cars to generate
 % Interval - Interval of traffic lights change in ms
 % Coeff - coefficient of random car generation delay
 % LightsCount - number of working traffic lights (between 1 and 4, otherwise program won't execute properly)
+% DoAdjust - boolean specifying if traffic lights change interval should change if one of queues is long 
 
 % To support different lengths of red and green lights check if interval is an integer (same duration of red and green)
-main(N, Interval, Coeff, LightsCount) when is_integer(Interval) -> main(N, [Interval, Interval], Coeff, LightsCount);
+main(N, Interval, Coeff, LightsCount, DoAdjust) when is_integer(Interval) -> main(N, [Interval, Interval], Coeff, LightsCount, DoAdjust);
 % or if interval is a list (different durations)
 % Treating first element of the list as duration of red, second as duration of green light on traffic light 1 & 3 
-main(N, Interval, Coeff, LightsCount) ->
+main(N, Interval, Coeff, LightsCount, DoAdjust) ->
     Lights = spawn_lights(LightsCount),
     if
         Lights == invalid -> % if number of traffic lights was invalid display appropriate message
             io:format("This number of lights (~p) is invalid. Please use number between 1 and 4.~n", [LightsCount]);
         true -> % else start the intersection
-            spawn(?MODULE, lights_changer, [Lights, Interval]), % enable changing lights once Interval (in ms) passes
+            spawn(?MODULE, lights_changer, [Lights, Interval, DoAdjust]), % enable changing lights once Interval (in ms) passes
             Printer = spawn(?MODULE, intersection_printer, [Lights]),
             spawn(?MODULE, car_generator, [N, Printer, Lights, Coeff]) % start car generator
     end.
