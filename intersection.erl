@@ -17,9 +17,10 @@
 % 3 -> car going "up"
 % 4 -> car going "right"
 
+% Process generating cars
 car_generator(N, Printer, Lights, Coeff) when N > 0 -> % N - Number of cars to generate
     Dir = rand:uniform(length(Lights)), % randomly choose direction according to the layout
-    lists:nth(Dir, Lights) ! car, % send a car to the intersection
+    lists:nth(Dir, Lights) ! car, % send a car to the intersection 
     Wait = rand:uniform(5) * Coeff, % randomly choose period between generation
     timer:sleep(Wait), % wait with further generation
     car_generator(N-1, Printer, Lights, Coeff); % generate rest of the N cars
@@ -30,7 +31,7 @@ car_generator(N, Printer, Lights, _) when N == 0 -> % N - Number of cars to gene
 
 car_generator(N, Printer, Lights, Coeff) when N < 0 -> % N - Number of cars to generate
     Dir = rand:uniform(length(Lights)), % randomly choose direction according to the layout
-    lists:nth(Dir, Lights) ! Dir, % send a car to the intersection
+    lists:nth(Dir, Lights) ! car, % send a car to the intersection
     Wait = rand:uniform(5) * Coeff, % randomly choose period between generation
     timer:sleep(Wait), % wait with further generation
     car_generator(N, Printer, Lights, Coeff). % generate cars forever - N never changes
@@ -43,6 +44,7 @@ terminate_lights([H|T]) ->
 % needed to avoid signature mismatch errors.
 terminate_lights([]) -> ok.
 
+% Process that's allowing cars to pass through the intersection
 car_runner(Light) ->
     Wait = rand:uniform(3) * 200, % randomly choose period between check: 200, 400, 600 milliseconds
     timer:sleep(Wait), % wait with checking light
@@ -54,6 +56,7 @@ car_runner(Light) ->
     end,
     car_runner(Light).
 
+% Individual traffic light process
 traffic_light(Name, Light, Queue) ->
     receive
         % Answer to light runner check
@@ -93,19 +96,29 @@ change_light(Name, Light, Queue) when Light == r ->
 change_light(Name, _, Queue) ->
     traffic_light(Name, r, Queue). % create a traffic light with changed light
 
-% Helper functions to send a signal to change lights every interval
-change_interval([H|T], Interval) ->
-    timer:send_interval(Interval, H, change),
-    change_interval(T, Interval);
+
+% Process messaging about light changes
+lights_changer(Lights, Interval) ->
+    message_change(Lights), % send change notification to every light
+    timer:sleep(Interval), % wait for Interval ms to pass
+    lights_changer(Lights, Interval). % go again
+
+% Helper function to message every light about the change
+message_change([H|T]) ->
+    H ! change,
+    message_change(T);
 % when initialized sending to every light - stop processing with an ok.
 % needed to avoid signature mismatch errors.
-change_interval([], _) -> ok. 
+message_change([]) -> ok.
 
+% Process printing the intersection
 intersection_printer(Lights) ->
     check_lights(Lights, self()), % send a query to every light to get Queue length and Light
     Data = receive_info(length(Lights)), % Parse received data
     if
-        Data == terminate -> terminate; % if received a terminate signal - end
+        Data == terminate -> 
+            io:format("=====================================~nAll cars have been generated. Ending.~n"),
+            terminate; % if received a terminate signal - end
         true ->
             io:format("~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n"), % "clear" the console
             io:format("##| ~p |##~n##| ~p |##~n--+   +--~n~p|~p   ~p|~p~n--+   +--~n##| ~p |##~n##| ~p |##~n", Data), % print the intersection
@@ -204,11 +217,10 @@ main(N, Interval, LightsCount) -> main(N, Interval, 150, LightsCount).
 main(N, Interval, Coeff, LightsCount) ->
     Lights = spawn_lights(LightsCount),
     if
-        Lights == invalid ->
+        Lights == invalid -> % if number of traffic lights was invalid display appropriate message
             io:format("This number of lights (~p) is invalid. Please use number between 1 and 4.~n", [LightsCount]);
-        true -> 
-            change_interval(Lights, Interval), % enable changing lights once Interval (in ms) passes
+        true -> % else start the intersection
+            spawn(?MODULE, lights_changer, [Lights, Interval]), % enable changing lights once Interval (in ms) passes
             Printer = spawn(?MODULE, intersection_printer, [Lights]),
-            % Manager = spawn(?MODULE, manager, [Lights, Printer]),
             spawn(?MODULE, car_generator, [N, Printer, Lights, Coeff]) % start car generator
     end.
