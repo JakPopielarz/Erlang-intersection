@@ -80,7 +80,8 @@ traffic_light(Name, Light, Queue) ->
             end;
 
         % Lights change signal
-        change ->
+        {From, change} ->
+            From ! {Name, length(Queue)},
             change_light(Name, Light, Queue);
 
         % Car approaching singal
@@ -104,15 +105,71 @@ lights_changer(Lights, Interval, N) ->
     CurrentInterval = lists:nth(Index, Interval), % get element from Interval list - 1 based indexing
     timer:sleep(CurrentInterval), % wait for Interval ms to pass
     message_change(Lights), % send change notification to every light
-    lights_changer(Lights, Interval, N+1). % go again with incremented N
+    NewInterval = adjust_intervals(length(Lights), Interval), % Get interval for next interation
+    lights_changer(Lights, NewInterval, N+1). % go again with incremented N
 
 % Helper function to message every light about the change
 message_change([H|T]) ->
-    H ! change,
+    H ! {self(), change},
     message_change(T);
 % when initialized sending to every light - stop processing with an ok.
 % needed to avoid signature mismatch errors.
 message_change([]) -> ok.
+
+% Helper function to change the interval of traffic lights change
+% For conveniency
+adjust_intervals(N, OldInterval) ->
+    adjust_intervals(N, OldInterval, [0, 0, 0, 0]). % start with a symbol for closed road - x
+adjust_intervals(N, OldInterval, List) when N > 0 ->
+    receive % Each light changes correct spots in List
+        {l1, Length} ->
+            New = replace(List, 1, Length),
+            adjust_intervals(N-1, OldInterval, New); % Make sure to receive from every light
+        {l2, Length} ->
+            New = replace(List, 2, Length),
+            adjust_intervals(N-1, OldInterval, New); % Make sure to receive from every light
+        {l3, Length} ->
+            New = replace(List, 3, Length),
+            adjust_intervals(N-1, OldInterval, New); % Make sure to receive from every light
+        {l4, Length} ->
+            New = replace(List, 4, Length),
+            adjust_intervals(N-1, OldInterval, New); % Make sure to receive from every light
+        terminate -> terminate
+    end; 
+% When a message from every light was received
+adjust_intervals(_, OldInterval, QueueLengths) ->
+    {MaxValue, MaxIndex} = lists:keyfind(lists:max(QueueLengths), 1, lists:zip(QueueLengths, lists:seq(1, length(QueueLengths)))), % Get Max element and it's index
+    % change the intervals for lights with longest queue longer than 5 cars
+    change_intervals(OldInterval, MaxValue, MaxIndex rem 2 + 1).
+
+% Helper function to change the intervals
+% If we need to make green longer for lights 1 & 3
+change_intervals([Red1, Red2], MaxValue, ChangeIndex) when MaxValue > 5, ChangeIndex == 1 ->
+    if
+        Red1 == Red2 -> % if intervals are equal
+            % elongate green on 1 & 3 by third of it's duration
+            NewInterval = [Red1 - Red1 div 3, Red2];
+        true -> % if intervals are not equal
+            % swap intervals for red and green
+            NewInterval = [Red2, Red1]
+    end,
+    NewInterval; % return changed intervals
+% If we need to make green longer for lights 2 & 4
+change_intervals([Red1, Red2], MaxValue, ChangeIndex) when MaxValue > 5, ChangeIndex == 2 ->
+    if
+        Red1 == Red2 -> % if intervals are equal
+            % elongate green on 2 & 4 by third of it's duration
+            NewInterval = [Red1, Red2 - Red2 div 3];
+        true -> % if intervals are not equal
+            % swap intervals for red and green
+            NewInterval = [Red2, Red1]
+    end,
+    NewInterval; % return changed intervals
+% If we don't need to change intervals
+change_intervals(OldInterval, MaxValue, _) when MaxValue =< 5 ->
+    OldInterval; % return unchanged intervals
+% Else something went wrong, we should get an error
+change_intervals(_, _, _) -> error.
 
 % Process printing the intersection
 intersection_printer(Lights) ->
@@ -129,7 +186,7 @@ intersection_printer(Lights) ->
             intersection_printer(Lights)
     end.
 
-% Helper function to check lights and queue lengths
+% Helper function to check lights and queue lengths 
 check_lights([H|T], From) ->
     H ! {From, get_info},
     check_lights(T, From);
