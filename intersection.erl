@@ -51,10 +51,11 @@ car_runner(Light) ->
     Light ! {self(), check},
     receive
         g -> % if light is green send a signal that car went through
-            Light ! car_went;
-        _ -> ok % else continue without doing anything
-    end,
-    car_runner(Light).
+            Light ! car_went,
+            car_runner(Light);
+        terminate -> terminate;
+        _ -> car_runner(Light) % else continue without doing anything
+    end.
 
 % Individual traffic light process
 traffic_light(Name, Light, Queue) ->
@@ -194,11 +195,9 @@ intersection_printer(Lights) ->
             io:format("=====================================~nAll cars have been generated. Ending.~n"),
             terminate; % if received a terminate signal - end
         true ->
-            % io:format("~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n"), % "clear" the console
-            io:format("~n~n"),
+            io:format("~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n"), % "clear" the console
             io:format("##| ~p |##~n##| ~p |##~n--+   +--~n~p|~p   ~p|~p~n--+   +--~n##| ~p |##~n##| ~p |##~n", Data), % print the intersection
-            % timer:sleep(50), % wait before next print-out
-            timer:sleep(100),
+            timer:sleep(50), % wait before next print-out
             intersection_printer(Lights)
     end.
 
@@ -245,40 +244,45 @@ spawn_lights(LightsCount) ->
     if
         LightsCount == 1 ->
             L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
-            spawn(?MODULE, car_runner, [L1]),
-            Lights = [L1];
+            R1 = spawn(?MODULE, car_runner, [L1]),
+            Lights = [L1],
+            Runners = [R1];
 
         LightsCount == 2 ->
             L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
-            spawn(?MODULE, car_runner, [L1]),
+            R1 = spawn(?MODULE, car_runner, [L1]),
             L2 = spawn(?MODULE, traffic_light, [l2, g, []]),
-            spawn(?MODULE, car_runner, [L2]),
-            Lights = [L1, L2];
+            R2 = spawn(?MODULE, car_runner, [L2]),
+            Lights = [L1, L2],
+            Runners = [R1, R2];
 
         LightsCount == 3 ->
             L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
-            spawn(?MODULE, car_runner, [L1]),
+            R1 = spawn(?MODULE, car_runner, [L1]),
             L2 = spawn(?MODULE, traffic_light, [l2, g, []]),
-            spawn(?MODULE, car_runner, [L2]),
+            R2 = spawn(?MODULE, car_runner, [L2]),
             L3 = spawn(?MODULE, traffic_light, [l3, r, []]),
-            spawn(?MODULE, car_runner, [L3]),
-            Lights = [L1, L2, L3];
+            R3 = spawn(?MODULE, car_runner, [L3]),
+            Lights = [L1, L2, L3],
+            Runners = [R1, R2, R3];
 
         LightsCount == 4 ->
             L1 = spawn(?MODULE, traffic_light, [l1, r, []]),
-            spawn(?MODULE, car_runner, [L1]),
+            R1 = spawn(?MODULE, car_runner, [L1]),
             L2 = spawn(?MODULE, traffic_light, [l2, g, []]),
-            spawn(?MODULE, car_runner, [L2]),
+            R2 = spawn(?MODULE, car_runner, [L2]),
             L3 = spawn(?MODULE, traffic_light, [l3, r, []]),
-            spawn(?MODULE, car_runner, [L3]),
+            R3 = spawn(?MODULE, car_runner, [L3]),
             L4 = spawn(?MODULE, traffic_light, [l4, g, []]),
-            spawn(?MODULE, car_runner, [L4]),
-            Lights = [L1, L2, L3, L4];
+            R4 = spawn(?MODULE, car_runner, [L4]),
+            Lights = [L1, L2, L3, L4],
+            Runners = [R1, R2, R3, R4];
 
         true ->
-            Lights = invalid
+            Lights = invalid,
+            Runners = invalid
     end,
-    Lights.
+    {Lights, Runners}.
 
 
 % various Quality of Life functions - with predetermined parameters
@@ -297,12 +301,12 @@ main(N, Interval, Coeff, LightsCount, DoAdjust) when is_integer(Interval) -> mai
 % or if interval is a list (different durations)
 % Treating first element of the list as duration of red, second as duration of green light on traffic light 1 & 3 
 main(N, Interval, Coeff, LightsCount, DoAdjust) ->
-    Lights = spawn_lights(LightsCount),
+    {Lights, Runners} = spawn_lights(LightsCount),
     if
         Lights == invalid -> % if number of traffic lights was invalid display appropriate message
             io:format("This number of lights (~p) is invalid. Please use number between 1 and 4.~n", [LightsCount]);
         true -> % else start the intersection
             Changer = spawn(?MODULE, lights_changer, [Lights, Interval, DoAdjust]), % enable changing lights once Interval (in ms) passes
             Printer = spawn(?MODULE, intersection_printer, [Lights]),
-            spawn(?MODULE, car_generator, [N, [Printer, Changer], Lights, Coeff]) % start car generator
+            spawn(?MODULE, car_generator, [N, [Printer, Changer] ++ Runners, Lights, Coeff]) % start car generator
     end.
