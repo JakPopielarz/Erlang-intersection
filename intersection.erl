@@ -100,8 +100,8 @@ change_light(Name, _, Queue) ->
 
 
 % Process messaging about light changes
-lights_changer(Lights, Interval, DoAdjust) -> lights_changer(Lights, Interval, DoAdjust, 0).
-lights_changer(Lights, Interval, DoAdjust, N) when DoAdjust == true->
+lights_changer(Lights, Interval, DoAdjust, Printer) -> lights_changer(Lights, Interval, DoAdjust, 0, Printer).
+lights_changer(Lights, Interval, DoAdjust, N, Printer) when DoAdjust == true->
     Index = N rem 2 + 1, % calculate index for this iteration - 1 or 2
     CurrentInterval = lists:nth(Index, Interval), % get element from Interval list - 1 based indexing
     timer:sleep(CurrentInterval), % wait for Interval ms to pass
@@ -110,16 +110,18 @@ lights_changer(Lights, Interval, DoAdjust, N) when DoAdjust == true->
     if
         NewInterval == terminate -> terminate;
         true ->
-            lights_changer(Lights, NewInterval, DoAdjust, N+1) % go again with incremented N
+            [Red1, Red2] = NewInterval,
+            Printer ! {intervals, Red1, Red2},
+            lights_changer(Lights, NewInterval, DoAdjust, N+1, Printer) % go again with incremented N
     end;
-lights_changer(Lights, [Interval, _], DoAdjust, N) ->
+lights_changer(Lights, [Interval, _], DoAdjust, N, _) ->
     timer:sleep(Interval),
     message_change(Lights), % send change notification to every light
     Received = adjust_intervals(length(Lights), Interval), % don't actually want to adjust interval, just receive info
     if
         Received == terminate -> terminate;
         true ->
-            lights_changer(Lights, [Interval, Interval], DoAdjust, N) % go again
+            lights_changer(Lights, [Interval, Interval], DoAdjust, N, unused) % go again
     end.
 
 % Helper function to message every light about the change
@@ -151,11 +153,11 @@ adjust_intervals(N, OldInterval, List) when N > 0 ->
         terminate -> terminate
     end; 
 % When a message from every light was received
-adjust_intervals(_, OldInterval, QueueLengths) ->
+adjust_intervals(_, [I1, I2], QueueLengths) ->
     {MaxValue, MaxIndex} = lists:keyfind(lists:max(QueueLengths), 1, lists:zip(QueueLengths, lists:seq(1, length(QueueLengths)))), % Get Max element and it's index
     % change the intervals for lights with longest queue longer than avg value of cars. 400 ms is avg time that cars need to go through light
-    AvgValue = OldInterval/400,
-    change_intervals(OldInterval, MaxValue, MaxIndex rem 2 + 1, AvgValue).
+    AvgValue = (I1+I2)/800,
+    change_intervals([I1, I2], MaxValue, MaxIndex rem 2 + 1, AvgValue).
 
 % Helper function to change the intervals
 % If we need to make green longer for lights 1 & 3
@@ -187,18 +189,29 @@ change_intervals(OldInterval, MaxValue, _, _) when MaxValue =< 5 ->
 change_intervals(_, _, _, _) -> error.
 
 % Process printing the intersection
-intersection_printer(Lights) ->
+intersection_printer(Lights, Red1, Red2) ->
     check_lights(Lights, self()), % send a query to every light to get Queue length and Light
-    Data = receive_info(length(Lights)), % Parse received data
+    {_, MessagesCount} = process_info(self(), message_queue_len),
+    Data = receive_info(MessagesCount), % Parse received data
     if
         Data == terminate -> 
             io:format("=====================================~nAll cars have been generated. Ending.~n"),
             terminate; % if received a terminate signal - end
         true ->
+            Check = lists:nth(9, Data),
+            if
+                Check == x ->
+                    NewRed1 = Red1,
+                    NewRed2 = Red2;
+                true ->
+                    NewRed1 = lists:nth(9, Data),
+                    NewRed2 = lists:nth(10, Data)
+            end,
+            LightsData = lists:sublist(Data, 8),
             io:format("~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n"), % "clear" the console
-            io:format("##| ~p |##~n##| ~p |##~n--+   +--~n~p|~p   ~p|~p~n--+   +--~n##| ~p |##~n##| ~p |##~n", Data), % print the intersection
+            io:format("Red light duration on 1 & 3: ~p ms~nRed light duration on 2 & 4: ~p ms~n---------~n##| ~p |##~n##| ~p |##~n--+   +--~n~p|~p   ~p|~p~n--+   +--~n##| ~p |##~n##| ~p |##~n", [NewRed1, NewRed2] ++ LightsData), % print the intersection
             timer:sleep(50), % wait before next print-out
-            intersection_printer(Lights)
+            intersection_printer(Lights, NewRed1, NewRed2)
     end.
 
 % Helper function to check lights and queue lengths 
@@ -211,7 +224,7 @@ check_lights([], _) -> ok.
 
 % Helper function to receive data from every light
 receive_info(N) ->
-    receive_info(N, [x, x, x, x, x, x, x, x]). % start with a symbol for closed road - x
+    receive_info(N, [x, x, x, x, x, x, x, x, x, x]). % start with a symbol for closed road - x
 receive_info(N, List) when N > 0 ->
     receive % Each light changes correct spots in List
         {l1, Light, Length} ->
@@ -229,6 +242,10 @@ receive_info(N, List) when N > 0 ->
         {l4, Light, Length} ->
             Tmp = replace(List, 3, Length),
             New = replace(Tmp, 4, Light),
+            receive_info(N-1, New); % Make sure tor receive from every light
+        {intervals, Red1, Red2} ->
+            Tmp = replace(List, 9, Red1),
+            New = replace(Tmp, 10, Red2),
             receive_info(N-1, New); % Make sure tor receive from every light
         terminate -> terminate
     end; 
@@ -306,7 +323,8 @@ main(N, Interval, Coeff, LightsCount, DoAdjust) ->
         Lights == invalid -> % if number of traffic lights was invalid display appropriate message
             io:format("This number of lights (~p) is invalid. Please use number between 1 and 4.~n", [LightsCount]);
         true -> % else start the intersection
-            Changer = spawn(?MODULE, lights_changer, [Lights, Interval, DoAdjust]), % enable changing lights once Interval (in ms) passes
-            Printer = spawn(?MODULE, intersection_printer, [Lights]),
+            [Red1, Red2] = Interval,
+            Printer = spawn(?MODULE, intersection_printer, [Lights, Red1, Red2]),
+            Changer = spawn(?MODULE, lights_changer, [Lights, Interval, DoAdjust, Printer]), % enable changing lights once Interval (in ms) passes
             spawn(?MODULE, car_generator, [N, [Printer, Changer] ++ Runners, Lights, Coeff]) % start car generator
     end.
