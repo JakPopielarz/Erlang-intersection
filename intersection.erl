@@ -183,7 +183,7 @@ change_intervals([Red1, Red2], MaxValue, ChangeIndex, AvgValue) when MaxValue > 
     end,
     NewInterval; % return changed intervals
 % If we don't need to change intervals
-change_intervals(OldInterval, MaxValue, _, _) when MaxValue =< 5 ->
+change_intervals(OldInterval, MaxValue, _, AvgValue) when MaxValue =< AvgValue ->
     OldInterval; % return unchanged intervals
 % Else something went wrong, we should get an error
 change_intervals(_, _, _, _) -> error.
