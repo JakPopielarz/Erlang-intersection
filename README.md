@@ -20,6 +20,8 @@ The arguments which are predetermined (and their values) have been chosen on "wh
 ## What does it do?
 Well, it "simulates" an intersection. After running the intersection will be printed in console every 50 ms. Basic print-out looks like this:
 ```
+Green light duration on 1 & 3: 2000 ms
+Green light duration on 2 & 4: 1334 ms
 ##| 0 |##   
 ##| r |##   
 --+   +--   
@@ -42,6 +44,8 @@ It's not much, but it's kind-of-simple to read. Every `r` or `g` symbolises a tr
 4 -> car going "right"
 ```
 So in the example print-out above we can see that:
+* Green light on road 1 and 3 will last 2000 ms
+* Green light on road 2 and 4 will last 2000 ms
 * Lights 1 and 3 are red, 2 is green
 * Light 4 is disabled (road closed symbolised by the `x`s)
 * There are 7 cars behind light 2, 1 waiting behind light 3
