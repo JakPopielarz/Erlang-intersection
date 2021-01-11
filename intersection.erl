@@ -144,12 +144,13 @@ adjust_intervals(N, OldInterval, List) when N > 0 ->
 % When a message from every light was received
 adjust_intervals(_, OldInterval, QueueLengths) ->
     {MaxValue, MaxIndex} = lists:keyfind(lists:max(QueueLengths), 1, lists:zip(QueueLengths, lists:seq(1, length(QueueLengths)))), % Get Max element and it's index
-    % change the intervals for lights with longest queue longer than 5 cars
-    change_intervals(OldInterval, MaxValue, MaxIndex rem 2 + 1).
+    % change the intervals for lights with longest queue longer than avg value of cars. 400 ms is avg time that cars need to go through light
+    AvgValue = OldInterval/400,
+    change_intervals(OldInterval, MaxValue, MaxIndex rem 2 + 1, AvgValue).
 
 % Helper function to change the intervals
 % If we need to make green longer for lights 1 & 3
-change_intervals([Red1, Red2], MaxValue, ChangeIndex) when MaxValue > 5, ChangeIndex == 1 ->
+change_intervals([Red1, Red2], MaxValue, ChangeIndex, AvgValue) when MaxValue > AvgValue, ChangeIndex == 1 ->
     if
         Red1 == Red2 -> % if intervals are equal
             % elongate green on 1 & 3 by third of it's duration
@@ -160,7 +161,7 @@ change_intervals([Red1, Red2], MaxValue, ChangeIndex) when MaxValue > 5, ChangeI
     end,
     NewInterval; % return changed intervals
 % If we need to make green longer for lights 2 & 4
-change_intervals([Red1, Red2], MaxValue, ChangeIndex) when MaxValue > 5, ChangeIndex == 2 ->
+change_intervals([Red1, Red2], MaxValue, ChangeIndex, AvgValue) when MaxValue > AvgValue, ChangeIndex == 2 ->
     if
         Red1 == Red2 -> % if intervals are equal
             % elongate green on 2 & 4 by third of it's duration
@@ -171,10 +172,10 @@ change_intervals([Red1, Red2], MaxValue, ChangeIndex) when MaxValue > 5, ChangeI
     end,
     NewInterval; % return changed intervals
 % If we don't need to change intervals
-change_intervals(OldInterval, MaxValue, _) when MaxValue =< 5 ->
+change_intervals(OldInterval, MaxValue, _, _) when MaxValue =< 5 ->
     OldInterval; % return unchanged intervals
 % Else something went wrong, we should get an error
-change_intervals(_, _, _) -> error.
+change_intervals(_, _, _, _) -> error.
 
 % Process printing the intersection
 intersection_printer(Lights) ->
