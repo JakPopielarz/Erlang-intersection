@@ -209,7 +209,7 @@ intersection_printer(Lights, Red1, Red2) ->
             end,
             LightsData = lists:sublist(Data, 8),
             io:format("~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n"), % "clear" the console
-            io:format("Red light duration on 1 & 3: ~p ms~nRed light duration on 2 & 4: ~p ms~n---------~n##| ~p |##~n##| ~p |##~n--+   +--~n~p|~p   ~p|~p~n--+   +--~n##| ~p |##~n##| ~p |##~n", [NewRed1, NewRed2] ++ LightsData), % print the intersection
+            io:format("Green light duration on 1 & 3: ~p ms~Green light duration on 2 & 4: ~p ms~n---------~n##| ~p |##~n##| ~p |##~n--+   +--~n~p|~p   ~p|~p~n--+   +--~n##| ~p |##~n##| ~p |##~n", [NewRed1, NewRed2] ++ LightsData), % print the intersection
             timer:sleep(50), % wait before next print-out
             intersection_printer(Lights, NewRed1, NewRed2)
     end.
