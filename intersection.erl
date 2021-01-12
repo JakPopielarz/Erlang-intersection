@@ -117,7 +117,7 @@ lights_changer(Lights, Interval, DoAdjust, N, Printer) when DoAdjust == true->
 lights_changer(Lights, [Interval, _], DoAdjust, N, _) ->
     timer:sleep(Interval),
     message_change(Lights), % send change notification to every light
-    Received = adjust_intervals(length(Lights), Interval), % don't actually want to adjust interval, just receive info
+    Received = adjust_intervals(length(Lights), [Interval, Interval]), % don't actually want to adjust interval, just receive info
     if
         Received == terminate -> terminate;
         true ->
@@ -208,8 +208,9 @@ intersection_printer(Lights, Red1, Red2) ->
                     NewRed2 = lists:nth(10, Data)
             end,
             LightsData = lists:sublist(Data, 8),
-            io:format("~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n"), % "clear" the console
-            io:format("Green light duration on 1 & 3: ~p ms~Green light duration on 2 & 4: ~p ms~n---------~n##| ~p |##~n##| ~p |##~n--+   +--~n~p|~p   ~p|~p~n--+   +--~n##| ~p |##~n##| ~p |##~n", [NewRed1, NewRed2] ++ LightsData), % print the intersection
+            % io:format("~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n~n"), % "clear" the console
+            io:format("~n~n"),
+            io:format("Green light duration on 1 & 3: ~p ms~nGreen light duration on 2 & 4: ~p ms~n---------~n##| ~p |##~n##| ~p |##~n--+   +--~n~p|~p   ~p|~p~n--+   +--~n##| ~p |##~n##| ~p |##~n", [NewRed1, NewRed2] ++ LightsData), % print the intersection
             timer:sleep(50), % wait before next print-out
             intersection_printer(Lights, NewRed1, NewRed2)
     end.
