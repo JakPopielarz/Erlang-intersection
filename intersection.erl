@@ -88,7 +88,6 @@ traffic_light(Name, Light, Queue) ->
         % Car approaching singal
         car ->
             traffic_light(Name, Light, Queue ++ [car]); % add cars to the end of the queue
-        % TODO: queue should be emptied before terminating lights
         terminate -> terminate 
     end.
 
